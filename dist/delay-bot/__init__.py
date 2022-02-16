@@ -1,7 +1,8 @@
 import aiohttp
 import asyncio
 import json
-import os
+
+import twitchio.ext.commands
 from twitchio.ext import commands
 
 
@@ -15,6 +16,12 @@ class Bot(commands.Bot):
     async def event_ready(self):
         # We are logged in and ready to chat and use commands...
         print(f'Logged in as | {self.nick}')
+
+    async def event_command_error(self, context, error):
+        if isinstance(error, twitchio.ext.commands.CommandNotFound):
+            return
+
+        raise error
 
     @commands.command()
     async def delay(self, ctx: commands.Context):
