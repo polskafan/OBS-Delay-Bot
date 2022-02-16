@@ -1,6 +1,6 @@
 {
   "channel": "polskafan",
   "token": "123xyzhastenichgesehen",
-  "sources":  ["Focusrite"],
+  "sources":  ["RTMP Source 1", "RTMP Source 2"],
   "delay": 900
 }
