@@ -1,6 +1,8 @@
 {
   "channel": "polskafan",
   "token": "123xyzhastenichgesehen",
+  "obs_host": "http://127.0.0.1:4444/",
+  "obs_password": "obs_websocket_password",
   "sources":  ["RTMP Source 1", "RTMP Source 2"],
   "delay": 900
 }

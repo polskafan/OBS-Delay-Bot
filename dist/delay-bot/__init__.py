@@ -1,6 +1,8 @@
 import aiohttp
 import asyncio
 import json
+import hashlib
+import base64
 
 import twitchio.ext.commands
 from twitchio.ext import commands
@@ -15,7 +17,7 @@ class Bot(commands.Bot):
 
     async def event_ready(self):
         # We are logged in and ready to chat and use commands...
-        print(f'Logged in as | {self.nick}')
+        print(f'[Twitch Chat] Logged in as {self.nick}')
 
     async def event_command_error(self, context, error):
         if isinstance(error, twitchio.ext.commands.CommandNotFound):
@@ -60,7 +62,6 @@ class Bot(commands.Bot):
 
 class DelayBot:
     def __init__(self):
-        self.session = aiohttp.ClientSession()
         self.obs = None
         self.bot = None
 
@@ -77,15 +78,46 @@ class DelayBot:
                 await asyncio.sleep(3600)
         except asyncio.CancelledError:
             await self.bot.close()
+            print("[Twitch Chat] Closed")
             return
 
     async def obs_websocket(self):
-        async with self.session.ws_connect('http://127.0.0.1:4444/') as self.obs:
-            # run forever
+        while True:
             try:
-                while True:
-                    await asyncio.sleep(3600)
+                async with aiohttp.ClientSession() as session:
+                    async with session.ws_connect(self.config['obs_host']) as self.obs:
+                        # start authentication
+                        await self.obs.send_json({'request-type': 'GetAuthRequired', 'message-id': 'GetAuthRequired'})
+
+                        async for msg in self.obs:
+                            data = json.loads(msg.data)
+                            if 'message-id' in data:
+                                if data['message-id'] == "GetAuthRequired":
+                                    if data['authRequired']:
+                                        # generate auth token
+                                        auth = hashlib.sha256(
+                                            (self.config['obs_password'] + data['salt']).encode('utf-8'))
+                                        auth = base64.b64encode(auth.digest())
+                                        auth = hashlib.sha256(
+                                            auth + data['challenge'].encode('utf-8'))
+                                        auth = base64.b64encode(auth.digest()).decode('utf-8')
+
+                                        await self.obs.send_json({'request-type': 'Authenticate',
+                                                                  'auth': auth,
+                                                                  'message-id': 'Authenticate'})
+                                    else:
+                                        print("[OBS Websocket] Connected.")
+                                elif data['message-id'] == "Authenticate":
+                                    if data['status'] == "ok":
+                                        print("[OBS Websocket] Authentication successful.")
+                                    else:
+                                        print("[OBS Websocket] Authentication failed. "
+                                              "Please check your password in config.json.")
+            except aiohttp.ClientError:
+                await asyncio.sleep(10)
+                continue
             except asyncio.CancelledError:
+                print("[OBS Websocket] Closed")
                 return
 
 
@@ -95,8 +127,14 @@ async def main():
 
 
 def run():
-    asyncio.run(main())
+    try:
+        asyncio.run(main())
+    except RuntimeError:
+        pass
 
 
 if __name__ == '__main__':
-    run()
+    try:
+        run()
+    except KeyboardInterrupt:
+        exit(0)
